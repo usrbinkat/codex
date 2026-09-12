@@ -3,6 +3,7 @@
   llvmPackages,
   openssl,
   libcap ? null,
+  alsa-lib ? null,
   glib,
   gst_all_1,
   rustPlatform,
@@ -20,7 +21,10 @@ rustPlatform.buildRustPackage (_: {
       gst_all_1.gstreamer.dev
       gst_all_1.gst-plugins-base.dev
     ]
-    ++ lib.optionals stdenv.hostPlatform.isLinux [ libcap ]
+    ++ lib.optionals stdenv.hostPlatform.isLinux [
+      libcap
+      alsa-lib
+    ]
   );
   pname = "codex-rs";
   inherit version;
@@ -46,6 +50,9 @@ rustPlatform.buildRustPackage (_: {
     glib
     gst_all_1.gstreamer
     gst_all_1.gst-plugins-base
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [
+    alsa-lib
   ];
 
   cargoLock.outputHashes = {
