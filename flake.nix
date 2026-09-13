@@ -1,15 +1,21 @@
 {
-  description = "Development Nix flake for OpenAI Codex CLI";
+  description = "OpenAI Codex CLI — lightweight coding agent";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, rust-overlay, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      rust-overlay,
+      ...
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -25,21 +31,19 @@
       cargoVersion = cargoToml.workspace.package.version;
 
       # When building from a release commit the Cargo.toml already carries the
-      # real version (e.g. "0.101.0").  On the main branch it is the placeholder
+      # real version (e.g. "0.154.0"). On the main branch it is the placeholder
       # "0.0.0", so we fall back to a dev version derived from the flake source.
-      version =
-        if cargoVersion != "0.0.0"
-        then cargoVersion
-        else "0.0.0-dev+${self.shortRev or "dirty"}";
+      version = if cargoVersion != "0.0.0" then cargoVersion else "0.0.0-dev+${self.shortRev or "dirty"}";
     in
     {
-      packages = forAllSystems (system:
+      packages = forAllSystems (
+        system:
         let
           pkgs = import nixpkgs {
             inherit system;
             overlays = [ rust-overlay.overlays.default ];
           };
-          codex-rs = pkgs.callPackage ./codex-rs {
+          codex = pkgs.callPackage ./codex-rs {
             inherit version;
             rustPlatform = pkgs.makeRustPlatform {
               cargo = pkgs.rust-bin.stable.latest.minimal;
@@ -48,19 +52,39 @@
           };
         in
         {
-          codex-rs = codex-rs;
-          default = codex-rs;
+          inherit codex;
+          default = codex;
         }
       );
 
-      devShells = forAllSystems (system:
+      overlays.default = final: _prev: {
+        codex = final.callPackage ./codex-rs {
+          inherit version;
+          rustPlatform = final.makeRustPlatform {
+            cargo = final.rust-bin.stable.latest.minimal;
+            rustc = final.rust-bin.stable.latest.minimal;
+          };
+        };
+      };
+
+      checks = forAllSystems (system: {
+        codex = self.packages.${system}.default;
+      });
+
+      formatter = forAllSystems (system: (import nixpkgs { inherit system; }).nixfmt-tree);
+
+      devShells = forAllSystems (
+        system:
         let
           pkgs = import nixpkgs {
             inherit system;
             overlays = [ rust-overlay.overlays.default ];
           };
           rust = pkgs.rust-bin.stable.latest.default.override {
-            extensions = [ "rust-src" "rust-analyzer" ];
+            extensions = [
+              "rust-src"
+              "rust-analyzer"
+            ];
           };
         in
         {
